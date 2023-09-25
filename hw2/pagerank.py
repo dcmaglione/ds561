@@ -12,9 +12,11 @@ import os
 import re
 import time
 
+from concurrent.futures import ThreadPoolExecutor
 from config import bucket_name, bucket_dir, local_dir
 from google.cloud import storage
 from tqdm import tqdm
+from typing import Union
 
 # ------- Functions ------- #
 def connect_to_bucket(bucket_name: str) -> storage.Bucket:
@@ -27,58 +29,148 @@ def connect_to_bucket(bucket_name: str) -> storage.Bucket:
     """
     print("Connecting to bucket...\n")
     storage_client = storage.Client.create_anonymous_client()
-    bucket = storage_client.bucket(bucket_name)
+    try :
+        bucket = storage_client.bucket(bucket_name)
+    except:
+        print("ERROR: Bucket does not exist..")
+        exit()
     return bucket
 
-def get_bucket_files(bucket: storage.Bucket, bucket_dir: str) -> list[str]:
-    """Get the files in a specific directory within the bucket.
+def get_files_in_bucket(bucket: storage.Bucket, bucket_dir: str) -> list[str]:
+    """Get the files in a specific directory within a bucket.
     
     Parameters:
         bucket -- The bucket object
         bucket_dir -- The directory within the bucket
     Returns:
-        A list of file names
+        The files in the directory
     """
     print("Getting bucket files...\n")
-    blobs = bucket.list_blobs(prefix=bucket_dir)
-    return [blob.name for blob in blobs]
+    return [blob for blob in bucket.list_blobs(prefix=bucket_dir)]
 
-def get_local_files(local_dir: str) -> list[str]:
-    """Get files in a local directory.
+def get_files_in_local_dir(local_dir: str) -> list[str]:
+    """Get the files in a specific local directory.
     
     Parameters:
         local_dir -- The local directory
     Returns:
-        A list of file names
+        The files in the directory
     """
     print("Getting local files...\n")
+    if not os.path.exists(local_dir):
+        print("ERROR: Local directory does not exist. Please run the generate_content.py script first.")
+        exit()
     return [os.path.join(local_dir, filename) for filename in os.listdir(local_dir)]
 
-def clean_file_name(file_name: str) -> str:
-    """Cleanup the file name.
+def read_files(args: argparse.Namespace) -> list[str]:
+    """Get the files in a specific directory within a bucket or local directory.
     
     Parameters:
-        file_name -- The file name
+        args -- The command line arguments
     Returns:
-        The cleaned up file name
+        The files in the directory
     """
-    return file_name.replace(bucket_dir, "").replace(".html", "")
+    if args.local:
+        return get_files_in_local_dir(local_dir)
+    else:
+        bucket = connect_to_bucket(bucket_name)
+        return get_files_in_bucket(bucket, bucket_dir)
 
-def get_links_from_file(file: str) -> list[str]:
-    """Get links from a file.
+def get_links_from_blob(blob: storage.Blob) -> list[str]:
+    """Get links from a blob.
     
     Parameters:
-        file -- The file name
+        blob -- The blob object
     Returns:
         A list of links
     """
-    with open(file, "r", encoding="utf-8") as file:
+    with blob.open("r") as file:
         html_content = file.read()
         href_pattern = r'<a\s+HREF="([^"]+)">' # Matches <a HREF="link">
         return re.findall(href_pattern, html_content)
+    
+def get_links_from_file(file_path: str) -> list[str]:
+    """Get links from a file.
+    
+    Parameters:
+        file_path -- The file path
+    Returns:
+        A list of links
+    """
+    with open(file_path, "r") as file:
+        html_content = file.read()
+        href_pattern = r'<a\s+HREF="([^"]+)">' # Matches <a HREF="link">
+        return re.findall(href_pattern, html_content)
+    
+def get_links(source: Union[storage.Blob, str]) -> list[str]:
+    """Get links from a blob or file.
+    
+    Parameters:
+        source -- The blob or file
+    Returns:
+        A list of links
+    """
+    if isinstance(source, storage.Blob):
+        return get_links_from_blob(source)
+    else:
+        return get_links_from_file(source)
+        
+def clean_file(file: Union[storage.Blob, str]) -> str:
+    """Cleanup the file name.
+    
+    Parameters:
+        file -- The file to be cleaned
+    Returns:
+        The cleaned up file name
+    """
+    if isinstance(file, storage.Blob):
+        file = file.name
+    return file.replace(bucket_dir, "").replace(".html", "")
 
+# def construct_adjacency_matrix(files: list[str]) -> npt.NDArray[np.float64]:
+#     """Construct an adjacency matrix for the files.
+    
+#     Parameters:
+#         files -- The list of files
+#     Returns:
+#         The adjacency matrix
+#     """
+#     print("Creating adjacency matrix...\n")
+#     num_files = len(files)
+#     adjacency_matrix = np.zeros((num_files, num_files))
+
+#     for file_path in tqdm(files):
+#         links = get_links(file_path)
+        
+#         # Clean the files and links to get the indices
+#         source_file = clean_file(file_path)
+#         links = [clean_file(link) for link in links]
+        
+#         # Update the adjacency matrix
+#         source_file_index = int(source_file)
+#         for link in links:
+#             link_index = int(link)
+#             adjacency_matrix[source_file_index][link_index] = 1
+            
+#     return adjacency_matrix
+
+# Define the process_file function
+def process_file(file_path, adjacency_matrix):
+    links = get_links(file_path)
+    
+    # Clean the files and links to get the indices
+    source_file = clean_file(file_path)
+    links = [clean_file(link) for link in links]
+    
+    # Update the adjacency matrix
+    source_file_index = int(source_file)
+    for link in links:
+        link_index = int(link)
+        adjacency_matrix[source_file_index][link_index] = 1
+
+# Modify the construct_adjacency_matrix function to use multithreading
 def construct_adjacency_matrix(files: list[str]) -> npt.NDArray[np.float64]:
-    """Construct an adjacency matrix for the files.
+    """Construct an adjacency matrix for the files using multithreading.
     
     Parameters:
         files -- The list of files
@@ -88,20 +180,14 @@ def construct_adjacency_matrix(files: list[str]) -> npt.NDArray[np.float64]:
     print("Creating adjacency matrix...\n")
     num_files = len(files)
     adjacency_matrix = np.zeros((num_files, num_files))
-    
-    for file_path in tqdm(files):
-        links = get_links_from_file(file_path)
-        
-        # Clean the files and links to get the indices
-        source_file = clean_file_name(file_path)
-        links = [clean_file_name(link) for link in links]
-        
-        # Update the adjacency matrix
-        source_file_index = int(source_file)
-        for link in links:
-            link_index = int(link)
-            adjacency_matrix[source_file_index][link_index] = 1
-            
+
+    # Create a thread pool with a maximum of 4 threads (you can adjust this number)
+    with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
+        # Use executor.map to concurrently process the list of files
+        # Pass the adjacency_matrix as an additional argument
+        for _ in tqdm(executor.map(process_file, files, [adjacency_matrix] * len(files)), total=len(files)):
+            pass
+
     return adjacency_matrix
 
 def calculate_statistics(adjacency_matrix: npt.NDArray[np.float64]) -> dict[str, dict[str, float]]:
@@ -147,7 +233,7 @@ def calculate_pagerank(adjacency_matrix: npt.NDArray[np.float64], damping_factor
     Returns:
         The PageRank values
     """
-    print("Calculating PageRank...\n")
+    print("\nCalculating PageRank...\n")
     num_nodes = adjacency_matrix.shape[0]
     current_pagerank = np.ones(num_nodes) / num_nodes # Normalize the initial PageRank values
     
@@ -191,18 +277,14 @@ def main():
     parser.add_argument("--test", action="store_true", help="Run NetworkX for comparison testing.")
     args = parser.parse_args()
 
-    # Get the files dependent on the --local flag
-    if args.local:
-        files = get_local_files(local_dir)
-    else:
-        bucket = connect_to_bucket(bucket_name)
-        files = get_bucket_files(bucket, bucket_dir)
-        
-    # Construct the adjacency matrix and calculate statistics and PageRank scores
     start = time.perf_counter() # Start the timer
+    
+    # Construct the adjacency matrix from the files and get the statistics and PageRank scores
+    files = read_files(args) # Get the files dependent on the --local flag
     adjacency_matrix = construct_adjacency_matrix(files)
     statistics = calculate_statistics(adjacency_matrix)
     pageranks = calculate_pagerank(adjacency_matrix)
+    
     end = time.perf_counter() # End the timer
     
     # Output the results
