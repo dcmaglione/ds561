@@ -5,7 +5,6 @@ import os
 
 random.seed(0) # set the seed to zero so it's deterministic
 
-
 def add_text(f):
     text = "Lorem ipsum dolor sit amet, \
 consectetur adipiscing elit, sed do \
