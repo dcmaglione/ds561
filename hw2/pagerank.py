@@ -3,7 +3,8 @@ import os
 import re
 import argparse
 import numpy as np
-from tqdm import tqdm
+import networkx as nx
+
 from google.cloud import storage
 from config import bucket_name, bucket_dir, local_dir
 
@@ -33,7 +34,7 @@ def get_links_from_file(file):
     """Get links from a file."""
     with open(file, "r", encoding="utf-8") as file:
         html_content = file.read()
-        href_pattern = r'<a\s+HREF="([^"]+)">'
+        href_pattern = r'<a\s+HREF="([^"]+)">' # Matches <a HREF="link">
         return re.findall(href_pattern, html_content)
 
 def construct_adjacency_matrix(files):
@@ -42,7 +43,7 @@ def construct_adjacency_matrix(files):
     num_files = len(files)
     adjacency_matrix = np.zeros((num_files, num_files))
     
-    for file_path in tqdm(files):
+    for file_path in files:
         links = get_links_from_file(file_path)
         
         source_file = clean_file_name(file_path)
@@ -78,7 +79,29 @@ def calculate_statistics(adjacency_matrix):
     }
     
     return statistics
+
+def calculate_pagerank(adjacency_matrix, damping_factor=0.85, epsilon=0.005):
+    """
+    Calculate the PageRank for each page in a web graph.
+    """
+    print("Calculating PageRank...\n")
+    num_nodes = adjacency_matrix.shape[0]
+    current_pagerank = np.ones(num_nodes) / num_nodes # Normalize the initial PageRank values
+    num_outgoing_edges = adjacency_matrix.sum(axis=1)
     
+    while True:
+        prev_pagerank = current_pagerank.copy()
+        
+        # Calculate the new PageRank values for each node
+        for i in range(num_nodes):
+            incoming_nodes = np.where(adjacency_matrix[:, i] == 1)[0]
+            sum_pagerank = np.sum(prev_pagerank[incoming_nodes] / num_outgoing_edges[incoming_nodes])
+            current_pagerank[i] = (1 - damping_factor) + damping_factor * sum_pagerank
+        
+        if np.linalg.norm(current_pagerank - prev_pagerank) < epsilon:
+            break
+    
+    return current_pagerank / np.sum(current_pagerank)
             
 def main():
     if bucket_dir != local_dir:
@@ -97,20 +120,36 @@ def main():
         
     adjacency_matrix = construct_adjacency_matrix(files)
     statistics = calculate_statistics(adjacency_matrix)
+    pageranks = calculate_pagerank(adjacency_matrix)
     
-    print("=====================================")
+    print("\n=====================================\n")
     print("Incoming Links Statistics:")
     print("--------------------------")
     for stat, value in statistics["Incoming Links"].items():
         print(f"{stat} {value}")
-    print("=====================================\n")
+    print("")
     
-    print("=====================================")
     print("Outgoing Links Statistics:")
     print("--------------------------")
     for stat, value in statistics["Outgoing Links"].items():
         print(f"{stat} {value}")
-    print("=====================================\n")
+    print("")
+    
+    print("PageRank Scores (Top 5):")
+    print("------------------------")
+    pagerank_top_5 = sorted(enumerate(pageranks), key=lambda x: x[1], reverse=True)[:5]
+    for page, score in pagerank_top_5:
+        print(f"Page: {page}, Score: {score}")
+    print("")
+    
+    print("PageRank Scores Using NetworkX (Top 5):")
+    print("---------------------------------------")
+    G = nx.from_numpy_array(adjacency_matrix, create_using=nx.DiGraph)
+    pagerank_scores = nx.pagerank(G)
+    networkx_top_5 = sorted(pagerank_scores.items(), key=lambda x: x[1], reverse=True)[:5]
+    for page, score in networkx_top_5:
+        print(f"Page: {page}, Score: {score}")
+    print("\n=====================================\n")
     
 if __name__ == "__main__":
     main()
