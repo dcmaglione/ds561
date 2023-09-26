@@ -12,7 +12,6 @@ This README provides an overview of the PageRank Statistics & Calculator homewor
   - [Configuration](#configuration)
   - [Running the Program](#running-the-program)
   - [Testing](#testing)
-  - [Cloud Resource Spending](#cloud-resource-spending)
 
 ## Requirements
 
@@ -109,5 +108,3 @@ python pagerank.py --test
 ```
 
 The program will calculate PageRank scores using both the custom algorithm and NetworkX. It will then display the top 5 pages by PageRank score for both methods.
-
-## Cloud Resource Spending
