@@ -127,6 +127,7 @@ def clean_file(file: Union[storage.Blob, str]) -> str:
         file = file.name
     return file.replace(bucket_dir, "").replace(".html", "")
 
+# Construct the adjacency matrix without multithreading
 # def construct_adjacency_matrix(files: list[str]) -> npt.NDArray[np.float64]:
 #     """Construct an adjacency matrix for the files.
     
