@@ -155,8 +155,13 @@ def clean_file(file: Union[storage.Blob, str]) -> str:
             
 #     return adjacency_matrix
 
-# Define the process_file function
-def process_file(file_path, adjacency_matrix):
+def process_file(file_path: str, adjacency_matrix: npt.NDArray[np.float64]) -> None:
+    """Process a file to update the adjacency matrix.
+    
+    Parameters:
+        file_path -- The file path
+        adjacency_matrix -- The adjacency matrix
+    """
     links = get_links(file_path)
     
     # Clean the files and links to get the indices
@@ -169,7 +174,6 @@ def process_file(file_path, adjacency_matrix):
         link_index = int(link)
         adjacency_matrix[source_file_index][link_index] = 1
 
-# Modify the construct_adjacency_matrix function to use multithreading
 def construct_adjacency_matrix(files: list[str]) -> npt.NDArray[np.float64]:
     """Construct an adjacency matrix for the files using multithreading.
     
