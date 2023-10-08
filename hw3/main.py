@@ -4,11 +4,34 @@
 # Date: 2023-10-09
 
 # ------ Imports ------- #
+import os
 import flask
 import functions_framework
 import logging
 
 from google.cloud import storage
+from google.cloud import pubsub_v1
+
+# ------ Constants ------- #
+GOOGLE_CLOUD_PROJECT = 'unique-epigram-398918'
+FORBIDDEN_COUNTRIES =[
+    'Cuba',
+    'Iran',
+    'Iraq',
+    'Libya',
+    'Myanmar',
+    'North Korea',
+    'Sudan',
+    'Syria',
+    'Zimbabwe'
+]
+
+# ------- Publisher ------- #
+publisher = pubsub_v1.PublisherClient()
+topic_name = 'projects/{project_id}/topics/{topic}'.format(
+    project_id=GOOGLE_CLOUD_PROJECT,
+    topic='forbidden-countries-topic'
+)
 
 # ------- Cloud Function ------- #
 @functions_framework.http
@@ -23,10 +46,10 @@ def get_file(request: flask.Request) -> flask.typing.ResponseReturnValue:
         # Try to retrieve the file from Google Cloud Storage
         try:
             # Initialize the Google Cloud Storage client
-            client = storage.Client.create_anonymous_client()
+            client = storage.Client()
             
             # Define the bucket and blob (file) to retrieve
-            bucket = client.bucket(bucket_name)
+            bucket = client.get_bucket(bucket_name)
             file_path = path.split('/', 2)[-1]
             blob = bucket.get_blob(file_path)
             
@@ -36,6 +59,15 @@ def get_file(request: flask.Request) -> flask.typing.ResponseReturnValue:
                 logging.error(f"File '{filename}' not found")
                 return flask.Response("Not Found", status=404)
             else:
+                # Check if the request is from a banned country
+                country = request.headers.get('X-country')
+                if country in FORBIDDEN_COUNTRIES:
+                    # Publish a message to the forbidden-countries-topic
+                    publisher.publish(topic_name, data=country.encode('utf-8'))
+                    # Log 403 error for forbidden countries
+                    logging.error(f"Country '{country}' is forbidden")
+                    return flask.Response("Bad Request", status=400)
+                
                 # Retrieve the file's content
                 file_content = blob.download_as_text()
                 return flask.Response(file_content, status=200)
