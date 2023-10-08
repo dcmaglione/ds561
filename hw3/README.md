@@ -86,7 +86,7 @@ https://get-file-zqv64qabhq-uk.a.run.app
 To use the provided HTTP client, populate the following parameters:
 
 -   `domain`: URL of the cloud function.
--   `bucket`: Name of the target bucket.
+-   `bucket`: Name of the target bucket. (prefix w/ `/`)
 -   `webdir`: Directory containing files in the bucket.
 -   `num_requests`: Number of requests to make.
 -   `index`: Maximum index of files.
