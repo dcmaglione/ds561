@@ -72,7 +72,12 @@ Deploy the cloud function using the following command:
 gcloud functions deploy get_file --gen2 --region=us-east4 --runtime=python39 --source=. --entry-point=get_file --trigger-http --allow-unauthenticated --max-instances=20
 ```
 
-The cloud function is deployed and accessible at a unique URL.
+The cloud function is deployed and accessible at a unique URL. To get the unique URL run the following command:
+
+```bash
+$ gcloud functions describe get_file --gen2 --region us-east4 --format='value(serviceConfig.uri)'
+https://get-file-zqv64qabhq-uk.a.run.app
+```
 
 ## Testing the Cloud Function
 
@@ -80,8 +85,8 @@ The cloud function is deployed and accessible at a unique URL.
 
 To use the provided HTTP client, populate the following parameters:
 
--   `domain`: URL of the cloud function (excluding /cloud_function at the end).
--   `bucket`: Name of the target bucket (prefixed by /cloud_function).
+-   `domain`: URL of the cloud function.
+-   `bucket`: Name of the target bucket.
 -   `webdir`: Directory containing files in the bucket.
 -   `num_requests`: Number of requests to make.
 -   `index`: Maximum index of files.
@@ -92,7 +97,7 @@ To use the provided HTTP client, populate the following parameters:
 For example, test with a single request:
 
 ```bash
-python3 http-client.py -d us-east4-unique-epigram-398918.cloudfunctions.net -b /get_file/bu-ds561-dcmag -w files -n 1 -i 9999 -s -v
+python3 http-client.py -d get-file-zqv64qabhq-uk.a.run.app -b bu-ds561-dcmag -w files -n 1 -i 9999 -s -v
 ```
 
 ### Curl
@@ -100,13 +105,13 @@ python3 http-client.py -d us-east4-unique-epigram-398918.cloudfunctions.net -b /
 -   **Error 404**: Test with a non-existent file, e.g.,
 
 ```bash
-curl -X GET -G "https://us-east4-unique-epigram-398918.cloudfunctions.net/get_file/bu-ds561-dcmag/files/01.html" -I
+curl -X GET -G "https://get-file-zqv64qabhq-uk.a.run.app/bu-ds561-dcmag/files/01.html" -I
 ```
 
 -   **Error 501**: Test with an invalid HTTP method, e.g.,
 
 ```bash
-curl -X POST -G "https://us-east4-unique-epigram-398918.cloudfunctions.net/get_file/bu-ds561-dcmag/files/1.html" -I
+curl -X POST -G "https://get-file-zqv64qabhq-uk.a.run.app/bu-ds561-dcmag/files/1.html" -I
 ```
 
 ### Browser
