@@ -97,7 +97,7 @@ To use the provided HTTP client, populate the following parameters:
 For example, test with a single request:
 
 ```bash
-python3 http-client.py -d get-file-zqv64qabhq-uk.a.run.app -b bu-ds561-dcmag -w files -n 1 -i 9999 -s -v
+python3 http-client.py -d get-file-zqv64qabhq-uk.a.run.app -b /bu-ds561-dcmag -w files -n 1 -i 9999 -s -v
 ```
 
 ### Curl
