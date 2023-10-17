@@ -8,8 +8,11 @@ import flask
 import logging
 
 from google.cloud import storage
+from google.cloud import pubsub_v1
+from waitress import serve
 
 # ------ Constants ------- #
+GOOGLE_CLOUD_PROJECT = 'unique-epigram-398918'
 FORBIDDEN_COUNTRIES =[
     'Cuba',
     'Iran',
@@ -21,6 +24,14 @@ FORBIDDEN_COUNTRIES =[
     'Syria',
     'Zimbabwe'
 ]
+
+# ------- Publisher ------- #
+publisher = pubsub_v1.PublisherClient()
+topic_name = 'projects/{project_id}/topics/{topic}'.format(
+    project_id=GOOGLE_CLOUD_PROJECT,
+    topic='forbidden-countries-topic'
+)
+
 
 # ------ Flask App ------- #
 app = flask.Flask(__name__)
@@ -53,6 +64,8 @@ def get_file(path: str) -> flask.Response:
                 # Check if the request is from a banned country
                 country = flask.request.headers.get('X-country')
                 if country in FORBIDDEN_COUNTRIES:
+                    # Publish a message to the forbidden-countries-topic
+                    publisher.publish(topic_name, data=country.encode('utf-8'))
                     # Log 403 error for forbidden countries
                     logging.error(f"Country '{country}' is forbidden")
                     return flask.Response("Bad Request", status=400)
@@ -69,3 +82,7 @@ def get_file(path: str) -> flask.Response:
         # Log 501 error for unsupported HTTP methods
         logging.error(f"Unsupported HTTP method: {flask.request.method}")
         return flask.Response("Not Implemented", status=501)
+    
+# ------ Main ------- #
+if __name__ == '__main__':
+    serve(app, host='0.0.0.0', port=8080)
