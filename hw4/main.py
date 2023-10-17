@@ -4,7 +4,6 @@
 # Date: 2023-10-15
 
 # ------ Imports ------- #
-import os
 import flask
 import logging
 
@@ -35,7 +34,6 @@ def get_file(path: str) -> flask.Response:
         bucket_name = path.split('/')[0]
         file_path = path.split('/', 1)[-1]
         filename = path.split('/')[-1]
-        print(bucket_name, file_path,  filename)
         
         # Try to retrieve the file from Google Cloud Storage
         try:
@@ -71,8 +69,3 @@ def get_file(path: str) -> flask.Response:
         # Log 501 error for unsupported HTTP methods
         logging.error(f"Unsupported HTTP method: {flask.request.method}")
         return flask.Response("Not Implemented", status=501)
-    
-
-# ------ Main ------- #
-if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=8080)
