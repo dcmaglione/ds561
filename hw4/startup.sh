@@ -1,12 +1,9 @@
 #! /bin/bash
 
-# Check if the directory already exists and remove it if so
-if [ -d "/home/dcmag/bu-ds561-dcmag-hw4" ]; then
-    rm -rf /home/dcmag/bu-ds561-dcmag-hw4
+# Check if the directory already exists and only create it if it doesn't
+if [ ! -d "/home/dcmag/bu-ds561-dcmag-hw4" ]; then
+    gsutil -m cp -r gs://bu-ds561-dcmag-hw4/ /home/dcmag/
 fi
-
-# Download files from bu-ds561-dcmag-hw4 bucket
-gsutil -m cp -r gs://bu-ds561-dcmag-hw4/ /home/dcmag/
 
 # Enter directory with flask app
 cd /home/dcmag/bu-ds561-dcmag-hw4

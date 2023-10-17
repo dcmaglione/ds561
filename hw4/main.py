@@ -6,14 +6,27 @@
 # ------ Imports ------- #
 import flask
 import logging
+import google.cloud.logging
 
-from google.cloud import storage
 from google.cloud import pubsub_v1
+from google.cloud import storage
 from waitress import serve
 
 # ------ Constants ------- #
+HTTP_METHODS = [
+    'GET',
+    'POST',
+    'PUT', 
+    'DELETE', 
+    'HEAD', 
+    'CONNECT', 
+    'OPTIONS', 
+    'TRACE', 
+    'PATCH'
+]
+
 GOOGLE_CLOUD_PROJECT = 'unique-epigram-398918'
-FORBIDDEN_COUNTRIES =[
+FORBIDDEN_COUNTRIES = [
     'Cuba',
     'Iran',
     'Iraq',
@@ -36,29 +49,27 @@ topic_name = 'projects/{project_id}/topics/{topic}'.format(
 # ------ Flask App ------- #
 app = flask.Flask(__name__)
 
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def get_file(path: str) -> flask.Response:
+@app.route('/<bucket_name>/<path:file_path>', methods=HTTP_METHODS)
+def get_file(bucket_name: str, file_path: str) -> flask.Response:
     # Check if the request method is GET
     if flask.request.method == 'GET':
-        # Parse the request parameters
-        bucket_name = path.split('/')[0]
-        file_path = path.split('/', 1)[-1]
-        filename = path.split('/')[-1]
-        
         # Try to retrieve the file from Google Cloud Storage
         try:
+            # Initialize the Google Cloud Logging client
+            logging_client = google.cloud.logging.Client()
+            logging_client.setup_logging()
+            
             # Initialize the Google Cloud Storage client
-            client = storage.Client()
+            bucket_client = storage.Client()
             
             # Define the bucket and blob (file) to retrieve
-            bucket = client.get_bucket(bucket_name)
+            bucket = bucket_client.get_bucket(bucket_name)
             blob = bucket.get_blob(file_path)
             
             # Check if the file exists
             if not blob:
                 # Log 404 error for non-existent files
-                logging.error(f"File '{filename}' not found")
+                logging.error(f"File '{file_path}' not found")
                 return flask.Response("Not Found", status=404)
             else:
                 # Check if the request is from a banned country
