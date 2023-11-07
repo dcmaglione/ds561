@@ -125,7 +125,10 @@ def clean_file(file: Union[storage.Blob, str]) -> str:
     """
     if isinstance(file, storage.Blob):
         file = file.name
-    return file.replace(bucket_dir, "").replace(".html", "")
+    # Extract the numeric part of the file name
+    file_name = os.path.basename(file)
+    file_name = os.path.splitext(file_name)[0]  # Remove the file extension
+    return file_name
 
 # Construct the adjacency matrix without multithreading
 # def construct_adjacency_matrix(files: list[str]) -> npt.NDArray[np.float64]:
