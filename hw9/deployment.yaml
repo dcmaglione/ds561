@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: hw9-gke
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            app: hw9
+    template:
+        metadata:
+            labels:
+                app: hw9
+        spec:
+            volumes:
+                - name: google-cloud-key
+                  secret:
+                      secretName: service-account-key
+            containers:
+                - name: hw9-app
+                  image: us-central1-docker.pkg.dev/unique-epigram-398918/hw9-docker-repo/hw9-image:latest
+                  imagePullPolicy: Always
+                  ports:
+                      - containerPort: 8080
+                  volumeMounts:
+                      - name: google-cloud-key
+                        mountPath: /var/secrets/google
+                  env:
+                      - name: PORT
+                        value: '8080'
+                      - name: GOOGLE_APPLICATION_CREDENTIALS
+                        value: /var/secrets/google/hw9-gke.json
+                  resources:
+                      requests:
+                          memory: '1Gi'
+                          cpu: '500m'
+                          ephemeral-storage: '1Gi'
+                      limits:
+                          memory: '1Gi'
+                          cpu: '500m'
+                          ephemeral-storage: '1Gi'
