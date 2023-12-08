@@ -1,0 +1,261 @@
+# ORDER OF OPERATIONS
+# - Service Account
+# - CloudSQL Instance/DB
+# - Bucket
+# - Pub/Sub Topic/Sub
+# - IAM Policies
+# - Firewall
+# - Web Server IP
+# - Web Server Instance
+# - PubSub Listener Instance
+
+resources:
+  # SERVICE ACCOUNT ------------------------------------------------------------------
+  # Web Server VM Instance
+  - name: service-account-hw10
+    type: iam.v1.serviceAccount
+    properties:
+      accountId: service-account-hw10
+      displayName: service-account-hw10
+      projectId: unique-epigram-398918
+
+  # CLOUD SQL ------------------------------------------------------------------
+  # Cloud SQL Instance
+  - name: mysql-instance-hw10
+    type: sqladmin.v1beta4.instance
+    properties:
+      name: mysql-instance-hw10
+      region: us-east4
+      databaseVersion: MYSQL_8_0
+      settings:
+        tier: db-custom-4-16384
+        backupConfiguration:
+          enabled: true
+        ipConfiguration:
+          ipv4Enabled: true
+        maxDiskSize: 100000000000
+      instanceType: CLOUD_SQL_INSTANCE
+
+    # Database Instance
+  - type: sqladmin.v1beta4.database
+    name: mysql-db-hw10
+    properties:
+      name: mysql-db-hw10
+      instance: $(ref.mysql-instance-hw10.name)
+
+  # CLOUD STORAGE --------------------------------------------------------------
+  # Storage Bucket
+  - name: bu-ds561-dcmag-mini-hw10
+    type: storage.v1.bucket
+    properties:
+      location: us-east4
+      storageClass: STANDARD
+
+  # PUB/SUB ------------------------------------------------------------------
+  # Topic for Forbidden Countries
+  - name: forbidden-countries-topic-hw10
+    type: pubsub.v1.topic
+    properties:
+      topic: forbidden-countries-topic-hw10
+    accessControl:
+      gcpIamPolicy:
+        bindings:
+          - role: roles/pubsub.publisher
+            members: serviceAccount:$(ref.service-account-hw10.email)
+
+  # Subscription for Forbidden Countries
+  - name: forbidden-countries-subscription-hw10
+    type: pubsub.v1.subscription
+    properties:
+      subscription: forbidden-countries-subscription-hw10
+      topic: $(ref.forbidden-countries-topic-hw10.name)
+      ackDeadlineSeconds: 10
+
+  # IAM & ADMIN ----------------------------------------------------------------
+  # Storage Admin
+  - name: iam-policy-binding-storage-admin
+    type: gcp-types/storage-v1:virtual.buckets.iamMemberBinding
+    properties:
+      bucket: bu-ds561-dcmag-hw10
+      role: roles/storage.admin
+      member: serviceAccount:$(ref.service-account-hw10.email)
+
+  # Storage Admin (Mini Bucket)
+  - name: iam-policy-binding-storage-admin-mini
+    type: gcp-types/storage-v1:virtual.buckets.iamMemberBinding
+    properties:
+      bucket: $(ref.bu-ds561-dcmag-mini-hw10.name)
+      role: roles/storage.admin
+      member: serviceAccount:$(ref.service-account-hw10.email)
+
+  # Storage Object Viewer
+  - name: iam-policy-binding-storage-viewer
+    type: gcp-types/storage-v1:virtual.buckets.iamMemberBinding
+    properties:
+      bucket: bu-ds561-dcmag-hw10
+      role: roles/storage.objectViewer
+      member: serviceAccount:$(ref.service-account-hw10.email)
+
+  # Storage Object Viewer (Mini Bucket)
+  - name: iam-policy-binding-storage-viewer-mini
+    type: gcp-types/storage-v1:virtual.buckets.iamMemberBinding
+    properties:
+      bucket: $(ref.bu-ds561-dcmag-mini-hw10.name)
+      role: roles/storage.objectViewer
+      member: allUsers
+
+  # Cloud SQL Admin
+  - name: iam-policy-binding-cloudsql-admin
+    type: gcp-types/cloudresourcemanager-v1:virtual.projects.iamMemberBinding
+    properties:
+      resource: unique-epigram-398918
+      role: roles/cloudsql.admin
+      member: serviceAccount:$(ref.service-account-hw10.email)
+
+  # Logs Writer
+  - name: iam-policy-binding-logs-writer
+    type: gcp-types/cloudresourcemanager-v1:virtual.projects.iamMemberBinding
+    properties:
+      resource: unique-epigram-398918
+      role: roles/logging.logWriter
+      member: serviceAccount:$(ref.service-account-hw10.email)
+
+  # Pub/Sub Publisher
+  - name: iam-policy-binding-pubsub-publisher
+    type: gcp-types/cloudresourcemanager-v1:virtual.projects.iamMemberBinding
+    properties:
+      resource: unique-epigram-398918
+      role: roles/pubsub.publisher
+      member: serviceAccount:$(ref.service-account-hw10.email)
+
+  # Pub/Sub Subscriber
+  - name: iam-policy-binding-pubsub-subscriber
+    type: gcp-types/cloudresourcemanager-v1:virtual.projects.iamMemberBinding
+    properties:
+      resource: unique-epigram-398918
+      role: roles/pubsub.subscriber
+      member: serviceAccount:$(ref.service-account-hw10.email)
+
+  # FIREWALL/IP ----------------------------------------------------------------
+  # Firewall
+  - name: firewall-rule-hw10
+    type: compute.v1.firewall
+    properties:
+      network: global/networks/default
+      targetTags: ["web-server-ip-hw10"]
+      sourceRanges: ["0.0.0.0/0"]
+      allowed:
+        - IPProtocol: TCP
+          ports: ["8080"]
+
+  # IP
+  - name: web-server-ip-hw10
+    type: compute.v1.address
+    properties:
+      name: web-server-ip-hw10
+      region: us-east1
+
+  # VM INSTANCE ----------------------------------------------------------------
+  # Web Server VM Instance
+  - name: web-server-hw10
+    type: compute.v1.instance
+    properties:
+      zone: us-east1-b
+      machineType: zones/us-east1-b/machineTypes/n1-standard-1
+      tags:
+        items: ["web-server-ip-hw10"]
+      disks:
+        - deviceName: boot
+          type: PERSISTENT
+          boot: true
+          autoDelete: true
+          initializeParams:
+            sourceImage: projects/debian-cloud/global/images/family/debian-11
+      networkInterfaces:
+        - network: global/networks/default
+          accessConfigs:
+            - name: External NAT
+              type: ONE_TO_ONE_NAT
+              netIP: $(ref.web-server-ip-hw10.address)
+      serviceAccounts:
+        - email: $(ref.service-account-hw10.email)
+          scopes:
+            - https://www.googleapis.com/auth/cloud-platform
+            - https://www.googleapis.com/auth/pubsub
+            - https://www.googleapis.com/auth/sqlservice.admin
+      metadata:
+        dependsOn:
+          - $(ref.mysql-instance-hw10.name)
+          - $(ref.web-server-ip-hw10.name)
+        items:
+          - key: startup-script
+            value: |
+              #!/bin/bash
+              # Check if the directory already exists and only create it if it doesn't
+              if [ ! -d "/home/dcmag/bu-ds561-dcmag-hw10" ]; then
+                  gsutil -m cp -r gs://bu-ds561-dcmag-hw10/ /home/dcmag/
+              fi
+
+              # Enter directory with flask app
+              cd /home/dcmag/bu-ds561-dcmag-hw10
+
+              # install dependencies from requirements.txt
+              apt install python3-pip -y
+              pip3 install -r requirements.txt
+
+              # create a directory for the files
+              mkdir files
+
+              # run the generate-data.py script
+              python3 generate-content.py
+
+              # copy the files folder to the bucket
+              gsutil -m cp -r files/ gs://bu-ds561-dcmag-mini-hw10
+
+              # run the flask app
+              python3 main.py
+
+  # Forbidden Countries VM Instance
+  - name: forbidden-countries-hw10
+    type: compute.v1.instance
+    properties:
+      zone: us-east1-b
+      machineType: zones/us-east1-b/machineTypes/f1-micro
+      disks:
+        - deviceName: boot
+          type: PERSISTENT
+          boot: true
+          autoDelete: true
+          initializeParams:
+            sourceImage: projects/debian-cloud/global/images/family/debian-11
+      networkInterfaces:
+        - network: global/networks/default
+          accessConfigs:
+            - name: External NAT
+              type: ONE_TO_ONE_NAT
+      serviceAccounts:
+        - email: $(ref.service-account-hw10.email)
+          scopes:
+            - https://www.googleapis.com/auth/cloud-platform
+            - https://www.googleapis.com/auth/pubsub
+      metadata:
+        dependsOn:
+          - $(ref.mysql-instance-hw10.name)
+        items:
+          - key: startup-script
+            value: |
+              #!/bin/bash
+              # Check if the directory already exists and only create it if it doesn't
+              if [ ! -d "/home/dcmag/bu-ds561-dcmag-hw10" ]; then
+                  gsutil -m cp -r gs://bu-ds561-dcmag-hw10/ /home/dcmag/
+              fi
+
+              # Enter directory with flask app
+              cd /home/dcmag/bu-ds561-dcmag-hw10
+
+              # install dependencies from requirements.txt
+              apt install python3-pip -y
+              pip3 install -r requirements.txt
+
+              # run the flask app
+              python3 track-forbidden.py
