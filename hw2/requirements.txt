@@ -21,4 +21,4 @@ rsa==4.9
 scipy==1.11.2
 soupsieve==2.5
 tqdm==4.66.1
-urllib3==1.26.16
+urllib3==2.1.0
